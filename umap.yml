@@ -1,0 +1,713 @@
+apiVersion: v1
+kind: Template
+labels:
+  app: umap
+  template: django-psql-persistent
+message: 'The following software have been deployed on https://${APPLICATION_DOMAIN}.'
+
+metadata:
+  annotations:
+    description: A example deployment of Umap
+    iconClass: icon-python
+    openshift.io/display-name: Umap
+    openshift.io/documentation-url: https://pretalx.readthedocs.io/en/latest/
+    openshift.io/long-description: This template deploy umap from git
+    openshift.io/provider-display-name: OSPO, Red Hat, Inc.
+    tags: quickstart,python,django
+    template.openshift.io/bindable: 'false'
+  name: umap
+objects:
+
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: ${NAME}
+  stringData:
+    database-password: ${DATABASE_PASSWORD}
+    database-user: ${DATABASE_USER}
+    django-secret-key: ${DJANGO_SECRET_KEY}
+    redis-password: ${REDIS_PASSWORD}
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      description: Exposes and load balances the application pods
+      service.alpha.openshift.io/dependencies: '[{"name": "postgresql",
+        "kind": "Service"}, {"name": "redis", "kind": "Service"}]'
+    name: ${NAME}
+  spec:
+    ports:
+    - name: web
+      port: 8080
+      targetPort: 8080
+    selector:
+      name: ${NAME}
+
+- apiVersion: v1
+  kind: Route
+  metadata:
+    name: ${NAME}
+  spec:
+    host: ${APPLICATION_DOMAIN}
+    to:
+      kind: Service
+      name: ${NAME}
+
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    annotations:
+      description: Keeps track of changes in the application image
+    name: ${NAME}
+
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    annotations:
+      description: Manage uwsgi configuration
+    name: ${NAME}-uwsgi
+  data: 
+    uswgi.ini: |+
+      [uwsgi]
+      http = 8000
+      module = umap.wsgi:application
+      master = True
+      vacuum = True
+      max-requests = 5000
+      processes = 4
+      enable-threads = true
+      static-map = /static=/srv/static
+      static-map = /uploads=/srv/uploads
+
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    annotations:
+      description: Manage umap configuration
+    name: ${NAME}-umap
+  data:
+    config.py: |-
+      # -*- coding:utf-8 -*-
+      import os.environ
+      from umap.settings.base import *   # pylint: disable=W0614,W0401
+
+      SECRET_KEY = env('SECRET_KEY')
+      INTERNAL_IPS = '127.0.0.1'
+      ALLOWED_HOSTS = '*'
+
+      DEBUG = False
+
+      ADMIN_EMAILS = '')
+      ADMINS = [(email, email) for email in ADMIN_EMAILS]
+      MANAGERS = ADMINS
+
+      DATABASES = {
+        'default': env.db(default='postgis://localhost:5432/umap')
+      }
+
+      COMPRESS_ENABLED = True
+      COMPRESS_OFFLINE = True
+
+      LANGUAGE_CODE = 'en'
+
+      # Set to False if login into django account should not be possible. You can
+      # administer accounts in the admin interface.
+      ENABLE_ACCOUNT_LOGIN = True
+
+      AUTHENTICATION_BACKENDS = ()
+
+      AUTHENTICATION_BACKENDS += (
+          'django.contrib.auth.backends.ModelBackend',
+      )
+
+      # MIDDLEWARE_CLASSES += (
+      #     'social_django.middleware.SocialAuthExceptionMiddleware',
+      # )
+
+      SOCIAL_AUTH_RAISE_EXCEPTIONS = False
+      SOCIAL_AUTH_BACKEND_ERROR_URL = "/"
+
+      # If you want to add a playgroud map, add its primary key
+      # UMAP_DEMO_PK = 204
+      # If you want to add a showcase map on the home page, add its primary key
+      # UMAP_SHOWCASE_PK = 1156
+      # Add a baner to warn people this instance is not production ready.
+      UMAP_DEMO_SITE = False
+
+      # Whether to allow non authenticated people to create maps.
+      LEAFLET_STORAGE_ALLOW_ANONYMOUS = True
+
+      # This setting will exclude empty maps (in fact, it will exclude all maps where
+      # the default center has not been updated)
+      UMAP_EXCLUDE_DEFAULT_MAPS = False
+
+      # How many maps should be showcased on the main page resp. on the user page
+      UMAP_MAPS_PER_PAGE = 0
+      # How many maps should be showcased on the user page, if owner
+      UMAP_MAPS_PER_PAGE_OWNER = 10
+
+      SITE_URL = env('SITE_URL')
+      SHORT_SITE_URL = env('SHORT_SITE_URL', default=None)
+
+      CACHES = {'default': 'locmem://'}
+
+      # POSTGIS_VERSION = (2, 1, 0)
+      EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+      # You need to unable accent extension before using UMAP_USE_UNACCENT
+      # python manage.py dbshell
+      # CREATE EXTENSION unaccent;
+      UMAP_USE_UNACCENT = False
+
+      # For static deployment
+      STATIC_ROOT = '/srv/static'
+
+      # For users' statics (geojson mainly)
+      MEDIA_ROOT = '/srv/uploads'
+
+      # Default map location for new maps
+      LEAFLET_LONGITUDE = env.int('LEAFLET_LONGITUDE', default=2)
+      LEAFLET_LATITUDE = env.int('LEAFLET_LATITUDE', default=51)
+      LEAFLET_ZOOM = env.int('LEAFLET_ZOOM', default=6)
+
+      # Number of old version to keep per datalayer.
+      LEAFLET_STORAGE_KEEP_VERSIONS = 5
+
+      import sys
+
+      LOGGING = {
+          'version': 1,
+          'disable_existing_loggers': False,
+          'formatters': {
+              'verbose': {
+                  'format': '[django] %(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s'
+              }
+          },
+          'handlers': {
+              'console': {
+                  'level': 'DEBUG',
+                  'class': 'logging.StreamHandler',
+                  'stream': sys.stdout,
+                  'formatter': 'verbose'
+              },
+          },
+          'loggers': {
+              'django': {
+                  'handlers': ['console'],
+                  'level': 'DEBUG',
+                  'propagate': True,
+              },
+          },
+      }
+
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    annotations:
+      description: Defines how to build the application
+      template.alpha.openshift.io/wait-for-ready: 'true'
+    name: ${NAME}
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: ${NAME}:latest
+    source:
+      contextDir: src
+      git:
+        ref: master
+        uri: https://github.com/umap-project/umap.git
+      type: Git
+      dockerfile: |-
+        # taken from https://github.com/umap-project/umap/pull/801/files
+        FROM node:12 AS vendors
+        WORKDIR /srv
+        COPY . .
+        RUN make installjs
+        RUN make vendors
+
+        FROM fedora:33
+        WORKDIR /srv
+        COPY . . 
+        ENV UMAP_SETTINGS=/srv/config.py
+        RUN dnf install -y pip postgresql-devel python-devel gcc uwsgi && dnf clean all
+
+        RUN pip install .
+        COPY --from=vendors /srv/umap/static/umap/vendors /srv/umap/static/umap/vendors
+        EXPOSE 8000
+        CMD ["uwsgi"]
+    strategy:
+      type: Docker
+  triggers:
+  - type: ImageChange
+  - type: ConfigChange
+  - github:
+      secret: ${GITHUB_WEBHOOK_SECRET}
+    type: GitHub
+
+# TODO
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    annotations:
+      description: Defines how to deploy the application server
+      template.alpha.openshift.io/wait-for-ready: 'true'
+    name: ${NAME}
+  spec:
+    replicas: 1
+    selector:
+      name: ${NAME}
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          name: ${NAME}
+      name: ${NAME}
+    spec:
+      initContainers:
+      - name: init-db
+        image: ${NAME}
+        command: ['python', '-m', 'pretalx', 'init']
+        env:
+        - name: PRETALX_DB_HOST
+          value: ${POSTGRESQL_SERVICE_HOST}
+        - name: PRETALX_DB_PORT
+          value: ${POSTGRESQL_SERVICE_PORT_POSTGRESQL} 
+        - name: PRETALX_DB_TYPE
+          value: postgresql
+        - name: PRETALX_DB_NAME
+          value: ${DATABASE_NAME}
+        - name: DATADIR
+          value: /var/lib/pretalx
+        - name: PRETALX_FILESYSTEM_LOGS
+          value: ${DATADIR}/logs
+        - name: PRETALX_FILESYSTEM_MEDIA
+          value: ${DATADIR}/media
+        - name: PRETALX_FILESYSTEM_STATIC
+          value: ${DATADIR}/static
+        - name: PRETALX_DB_USER
+          valueFrom:
+            secretKeyRef:
+              key: database-user
+              name: ${NAME}
+        - name: PRETALX_DB_PASS
+          valueFrom:
+            secretKeyRef:
+              key: database-password
+              name: ${NAME}
+      containers:
+      - env:
+        - name: PRETALX_SITE_URL
+          value: https://${APPLICATION_DOMAIN}
+        - name: PRETALX_DB_TYPE
+          value: postgresql
+        - name: PRETALX_DB_NAME
+          value: ${DATABASE_NAME}
+        - name: PRETALX_DB_USER
+          valueFrom:
+            secretKeyRef:
+              key: database-user
+              name: ${NAME}
+        - name: PRETALX_DB_PASS
+          valueFrom:
+            secretKeyRef:
+              key: database-password
+              name: ${NAME}
+        - name: APP_CONFIG
+          value: ${APP_CONFIG}
+        - name: APP_MODULE
+          value: pretalx.wsgi
+        - name: DJANGO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              key: django-secret-key
+              name: ${NAME}
+        image: ' '
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 30
+          timeoutSeconds: 3
+        name: django-psql-persistent
+        ports:
+        - containerPort: 8080
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 3
+          timeoutSeconds: 3
+        resources:
+          limits:
+            memory: ${MEMORY_LIMIT}
+        volumeMounts:
+        - mountPath: /var/lib/pretalx/
+          name: pretalx-data
+      volumes:
+      - name: pretalx-data
+        persistentVolumeClaim:
+          claimName: pretalx-data
+    triggers:
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - django-psql-persistent
+        from:
+          kind: ImageStreamTag
+          name: ${NAME}:latest
+      type: ImageChange
+    - type: ConfigChange
+
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: pretalx-data
+  spec:
+    accessModes:
+    - ReadWriteMany
+    resources:
+      requests:
+        storage: ${PRETALX_DATA_VOLUME_CAPACITY}
+
+#
+# postgis
+#
+
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: postgresql
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: ${POSTGRESQL_VOLUME_CAPACITY}
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      description: Exposes the database server
+    name: postgresql
+  spec:
+    ports:
+    - name: postgresql
+      port: 5432
+      targetPort: 5432
+    selector:
+      name: postgresql
+
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    annotations:
+      description: Defines how to deploy the database
+      template.alpha.openshift.io/wait-for-ready: 'true'
+    name: postgresql
+  spec:
+    replicas: 1
+    selector:
+      name: postgresql
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          name: postgresql
+        name: postgresql
+      spec:
+        containers:
+        - env:
+          - name: POSTGRES_USER
+            valueFrom:
+              secretKeyRef:
+                key: database-user
+                name: ${NAME}
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: database-password
+                name: ${NAME}
+          - name: POSTGRES_DATABASE
+            value: ${DATABASE_NAME}
+        image: ' '
+        name: postgresql
+        ports:
+        - containerPort: 5432
+        resources:
+          limits:
+            memory: ${MEMORY_POSTGRESQL_LIMIT}
+        volumeMounts:
+        - mountPath: /var/lib/pgsql/data
+          name: postgresql-data
+        volumes:
+        - name: postgresql-data
+          persistentVolumeClaim:
+            claimName: postgresql
+    triggers:
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - postgresql
+        from:
+          kind: ImageStreamTag
+          name: postgresql:${POSTGRESQL_VERSION}
+          namespace: ${NAMESPACE}
+      type: ImageChange
+    - type: ConfigChange
+
+
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    annotations:
+      description: Keeps track of changes in the application image
+    name: postgresql
+  spec:
+    lookupPolicy:
+      local: false
+    tags:
+    - annotations: null
+      from:
+        kind: DockerImage
+        name: docker.io/postgis/postgis
+      generation: 2
+      importPolicy:
+        scheduled: true
+      name: latest
+      referencePolicy:
+        type: Source
+
+
+
+#
+# redis
+# 
+
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: redis
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: ${REDIS_VOLUME_CAPACITY}
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: redis
+  spec:
+    ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+    selector:
+      name: redis
+
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    annotations:
+      template.alpha.openshift.io/wait-for-ready: 'true'
+    name: redis
+  spec:
+    replicas: 1
+    selector:
+      name: redis
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        name: redis
+        labels:
+          name: redis
+      spec:
+        containers:
+        - capabilities: {}
+          env:
+          - name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: redis-password
+                name: ${NAME}
+          image: ' '
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            initialDelaySeconds: 30
+            tcpSocket:
+              port: 6379
+            timeoutSeconds: 1
+          name: redis
+          ports:
+          - containerPort: 6379
+            protocol: TCP
+          readinessProbe:
+            exec:
+              command:
+              - /bin/sh
+              - -i
+              - -c
+              - test "$(redis-cli -h 127.0.0.1 -a $REDIS_PASSWORD ping)" == "PONG"
+            initialDelaySeconds: 5
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: ${MEMORY_LIMIT}
+          securityContext:
+            capabilities: {}
+            privileged: false
+          terminationMessagePath: /dev/termination-log
+          volumeMounts:
+          - mountPath: /var/lib/redis/data
+            name: redis-data
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        volumes:
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: redis
+    triggers:
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - redis
+        from:
+          kind: ImageStreamTag
+          name: redis:${REDIS_VERSION}
+          namespace: ${NAMESPACE}
+        lastTriggeredImage: ''
+      type: ImageChange
+    - type: ConfigChange
+  status: {}
+
+
+
+parameters:
+
+- description: The name assigned to all of the frontend objects defined in this template.
+  displayName: Name
+  name: NAME
+  required: true
+  value: umap
+
+- description: The OpenShift Namespace where the ImageStream resides.
+  displayName: Namespace
+  name: NAMESPACE
+  required: true
+  value: openshift
+
+- description: Version of Python image to be used (3.6 or latest).
+  displayName: Version of Python Image
+  name: PYTHON_VERSION
+  required: true
+  value: '3.8'
+
+- description: Version of PostgreSQL image to be used (10 or latest).
+  displayName: Version of PostgreSQL Image
+  name: POSTGRESQL_VERSION
+  required: true
+  value: '10'
+
+- description: Maximum amount of memory the Django container can use.
+  displayName: Memory Limit
+  name: MEMORY_LIMIT
+  required: true
+  value: 1024Mi
+
+- description: Maximum amount of memory the PostgreSQL container can use.
+  displayName: Memory Limit (PostgreSQL)
+  name: MEMORY_POSTGRESQL_LIMIT
+  required: true
+  value: 512Mi
+
+- description: Volume space available for data, e.g. 512Mi, 2Gi
+  displayName: Volume Capacity
+  name: POSTGRESQL_VOLUME_CAPACITY
+  required: true
+  value: 1Gi
+
+- description: The URL of the repository with your application source code.
+  displayName: Git Repository URL
+  name: SOURCE_REPOSITORY_URL
+  required: true
+  value: https://github.com/pretalx/pretalx.git
+
+- description: Set this to a branch name, tag or other ref of your repository if you
+    are not using the default branch.
+  displayName: Git Reference
+  name: SOURCE_REPOSITORY_REF
+
+- description: The exposed hostname that will route to the Django service, if left
+    blank a value will be defaulted.
+  displayName: Application Hostname
+  name: APPLICATION_DOMAIN
+  value: ''
+
+- description: Github trigger secret.  A difficult to guess string encoded as part
+    of the webhook URL.  Not encrypted.
+  displayName: GitHub Webhook Secret
+  from: '[a-zA-Z0-9]{40}'
+  generate: expression
+  name: GITHUB_WEBHOOK_SECRET
+
+- displayName: Database Name
+  name: DATABASE_NAME
+  required: true
+  value: default
+
+- displayName: Database Username
+  name: DATABASE_USER
+  required: true
+  value: django
+
+- displayName: Database User Password
+  from: '[a-zA-Z0-9]{16}'
+  generate: expression
+  name: DATABASE_PASSWORD
+
+- description: Relative path to Gunicorn configuration file (optional).
+  displayName: Application Configuration File Path
+  name: APP_CONFIG
+
+- description: Set this to a long random string.
+  displayName: Django Secret Key
+  from: '[\w]{50}'
+  generate: expression
+  name: DJANGO_SECRET_KEY
+
+- description: The custom PyPi index URL
+  displayName: Custom PyPi Index URL
+  name: PIP_INDEX_URL
+  value: ''
+
+- description: Version of Redis image to be used (3.2 or latest).
+  displayName: Version of Redis Image
+  name: REDIS_VERSION
+  required: true
+  value: '3.2'
+
+- description: Password for the Redis connection user.
+  displayName: Redis Connection Password
+  from: '[a-zA-Z0-9]{16}'
+  generate: expression
+  name: REDIS_PASSWORD
+  required: true
+
+- description: Volume space available for redis data, e.g. 512Mi, 2Gi.
+  displayName: Redis Volume Capacity
+  name: REDIS_VOLUME_CAPACITY
+  required: true
+  value: 1Gi
+
+- description: Volume space available for pretalx data, e.g. 512Mi, 2Gi.
+  displayName: Pretalx Data Volume Capacity
+  name: PRETALX_DATA_VOLUME_CAPACITY
+  required: true
+  value: 1Gi
