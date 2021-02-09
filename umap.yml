@@ -265,91 +265,91 @@ objects:
         labels:
           name: ${NAME}
       name: ${NAME}
-    spec:
-      initContainers:
-      - name: init-db
-        image: ${NAME}
-        command: ['python', '-m', 'pretalx', 'init']
-        env:
-        - name: PRETALX_DB_HOST
-          value: ${POSTGRESQL_SERVICE_HOST}
-        - name: PRETALX_DB_PORT
-          value: ${POSTGRESQL_SERVICE_PORT_POSTGRESQL} 
-        - name: PRETALX_DB_TYPE
-          value: postgresql
-        - name: PRETALX_DB_NAME
-          value: ${DATABASE_NAME}
-        - name: DATADIR
-          value: /var/lib/pretalx
-        - name: PRETALX_FILESYSTEM_LOGS
-          value: ${DATADIR}/logs
-        - name: PRETALX_FILESYSTEM_MEDIA
-          value: ${DATADIR}/media
-        - name: PRETALX_FILESYSTEM_STATIC
-          value: ${DATADIR}/static
-        - name: PRETALX_DB_USER
-          valueFrom:
-            secretKeyRef:
-              key: database-user
-              name: ${NAME}
-        - name: PRETALX_DB_PASS
-          valueFrom:
-            secretKeyRef:
-              key: database-password
-              name: ${NAME}
-      containers:
-      - env:
-        - name: PRETALX_SITE_URL
-          value: https://${APPLICATION_DOMAIN}
-        - name: PRETALX_DB_TYPE
-          value: postgresql
-        - name: PRETALX_DB_NAME
-          value: ${DATABASE_NAME}
-        - name: PRETALX_DB_USER
-          valueFrom:
-            secretKeyRef:
-              key: database-user
-              name: ${NAME}
-        - name: PRETALX_DB_PASS
-          valueFrom:
-            secretKeyRef:
-              key: database-password
-              name: ${NAME}
-        - name: APP_CONFIG
-          value: ${APP_CONFIG}
-        - name: APP_MODULE
-          value: pretalx.wsgi
-        - name: DJANGO_SECRET_KEY
-          valueFrom:
-            secretKeyRef:
-              key: django-secret-key
-              name: ${NAME}
-        image: ' '
-        livenessProbe:
-          httpGet:
-            path: /
-            port: 8080
-          initialDelaySeconds: 30
-          timeoutSeconds: 3
-        name: django-psql-persistent
-        ports:
-        - containerPort: 8080
-        readinessProbe:
-          httpGet:
-            path: /
-            port: 8080
-          initialDelaySeconds: 3
-          timeoutSeconds: 3
-        resources:
-          limits:
-            memory: ${MEMORY_LIMIT}
-        volumeMounts:
-        - mountPath: /var/lib/pretalx/
-          name: pretalx-data
-      volumes:
-      - name: pretalx-data
-        persistentVolumeClaim:
-          claimName: pretalx-data
+      spec:
+        initContainers:
+        - name: init-db
+          image: ${NAME}
+          command: ['python', '-m', 'pretalx', 'init']
+          env:
+          - name: PRETALX_DB_HOST
+            value: ${POSTGRESQL_SERVICE_HOST}
+          - name: PRETALX_DB_PORT
+            value: ${POSTGRESQL_SERVICE_PORT_POSTGRESQL} 
+          - name: PRETALX_DB_TYPE
+            value: postgresql
+          - name: PRETALX_DB_NAME
+            value: ${DATABASE_NAME}
+          - name: DATADIR
+            value: /var/lib/pretalx
+          - name: PRETALX_FILESYSTEM_LOGS
+            value: ${DATADIR}/logs
+          - name: PRETALX_FILESYSTEM_MEDIA
+            value: ${DATADIR}/media
+          - name: PRETALX_FILESYSTEM_STATIC
+            value: ${DATADIR}/static
+          - name: PRETALX_DB_USER
+            valueFrom:
+              secretKeyRef:
+                key: database-user
+                name: ${NAME}
+          - name: PRETALX_DB_PASS
+            valueFrom:
+              secretKeyRef:
+                key: database-password
+                name: ${NAME}
+        containers:
+        - env:
+          - name: PRETALX_SITE_URL
+            value: https://${APPLICATION_DOMAIN}
+          - name: PRETALX_DB_TYPE
+            value: postgresql
+          - name: PRETALX_DB_NAME
+            value: ${DATABASE_NAME}
+          - name: PRETALX_DB_USER
+            valueFrom:
+              secretKeyRef:
+                key: database-user
+                name: ${NAME}
+          - name: PRETALX_DB_PASS
+            valueFrom:
+              secretKeyRef:
+                key: database-password
+                name: ${NAME}
+          - name: APP_CONFIG
+            value: ${APP_CONFIG}
+          - name: APP_MODULE
+            value: pretalx.wsgi
+          - name: DJANGO_SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                key: django-secret-key
+                name: ${NAME}
+          image: ' '
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 30
+            timeoutSeconds: 3
+          name: django-psql-persistent
+          ports:
+          - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 3
+            timeoutSeconds: 3
+          resources:
+            limits:
+              memory: ${MEMORY_LIMIT}
+          volumeMounts:
+          - mountPath: /srv/data/
+            name: ${NAME}-data
+        volumes:
+        - name: ${NAME}-data
+          persistentVolumeClaim:
+            claimName: ${NAME}-data
     triggers:
     - imageChangeParams:
         automatic: true
@@ -364,13 +364,13 @@ objects:
 - apiVersion: v1
   kind: PersistentVolumeClaim
   metadata:
-    name: pretalx-data
+    name: ${NAME}-data
   spec:
     accessModes:
     - ReadWriteMany
     resources:
       requests:
-        storage: ${PRETALX_DATA_VOLUME_CAPACITY}
+        storage: ${UMAP_DATA_VOLUME_CAPACITY}
 
 #
 # postgis
@@ -434,16 +434,16 @@ objects:
                 name: ${NAME}
           - name: POSTGRES_DATABASE
             value: ${DATABASE_NAME}
-        image: ' '
-        name: postgresql
-        ports:
-        - containerPort: 5432
-        resources:
-          limits:
-            memory: ${MEMORY_POSTGRESQL_LIMIT}
-        volumeMounts:
-        - mountPath: /var/lib/pgsql/data
-          name: postgresql-data
+          image: ' '
+          name: postgresql
+          ports:
+          - containerPort: 5432
+          resources:
+            limits:
+              memory: ${MEMORY_POSTGRESQL_LIMIT}
+          volumeMounts:
+          - mountPath: /var/lib/pgsql/data
+            name: postgresql-data
         volumes:
         - name: postgresql-data
           persistentVolumeClaim:
@@ -482,115 +482,7 @@ objects:
       referencePolicy:
         type: Source
 
-
-
-#
-# redis
-# 
-
-- apiVersion: v1
-  kind: PersistentVolumeClaim
-  metadata:
-    name: redis
-  spec:
-    accessModes:
-    - ReadWriteOnce
-    resources:
-      requests:
-        storage: ${REDIS_VOLUME_CAPACITY}
-
-- apiVersion: v1
-  kind: Service
-  metadata:
-    name: redis
-  spec:
-    ports:
-    - name: redis
-      port: 6379
-      targetPort: 6379
-    selector:
-      name: redis
-
-- apiVersion: v1
-  kind: DeploymentConfig
-  metadata:
-    annotations:
-      template.alpha.openshift.io/wait-for-ready: 'true'
-    name: redis
-  spec:
-    replicas: 1
-    selector:
-      name: redis
-    strategy:
-      type: Recreate
-    template:
-      metadata:
-        name: redis
-        labels:
-          name: redis
-      spec:
-        containers:
-        - capabilities: {}
-          env:
-          - name: REDIS_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                key: redis-password
-                name: ${NAME}
-          image: ' '
-          imagePullPolicy: IfNotPresent
-          livenessProbe:
-            initialDelaySeconds: 30
-            tcpSocket:
-              port: 6379
-            timeoutSeconds: 1
-          name: redis
-          ports:
-          - containerPort: 6379
-            protocol: TCP
-          readinessProbe:
-            exec:
-              command:
-              - /bin/sh
-              - -i
-              - -c
-              - test "$(redis-cli -h 127.0.0.1 -a $REDIS_PASSWORD ping)" == "PONG"
-            initialDelaySeconds: 5
-            timeoutSeconds: 1
-          resources:
-            limits:
-              memory: ${MEMORY_LIMIT}
-          securityContext:
-            capabilities: {}
-            privileged: false
-          terminationMessagePath: /dev/termination-log
-          volumeMounts:
-          - mountPath: /var/lib/redis/data
-            name: redis-data
-        dnsPolicy: ClusterFirst
-        restartPolicy: Always
-        volumes:
-        - name: redis-data
-          persistentVolumeClaim:
-            claimName: redis
-    triggers:
-    - imageChangeParams:
-        automatic: true
-        containerNames:
-        - redis
-        from:
-          kind: ImageStreamTag
-          name: redis:${REDIS_VERSION}
-          namespace: ${NAMESPACE}
-        lastTriggeredImage: ''
-      type: ImageChange
-    - type: ConfigChange
-  status: {}
-
-
-
 parameters:
-
 - description: The name assigned to all of the frontend objects defined in this template.
   displayName: Name
   name: NAME
@@ -632,12 +524,6 @@ parameters:
   name: POSTGRESQL_VOLUME_CAPACITY
   required: true
   value: 1Gi
-
-- description: The URL of the repository with your application source code.
-  displayName: Git Repository URL
-  name: SOURCE_REPOSITORY_URL
-  required: true
-  value: https://github.com/pretalx/pretalx.git
 
 - description: Set this to a branch name, tag or other ref of your repository if you
     are not using the default branch.
@@ -682,32 +568,8 @@ parameters:
   generate: expression
   name: DJANGO_SECRET_KEY
 
-- description: The custom PyPi index URL
-  displayName: Custom PyPi Index URL
-  name: PIP_INDEX_URL
-  value: ''
-
-- description: Version of Redis image to be used (3.2 or latest).
-  displayName: Version of Redis Image
-  name: REDIS_VERSION
-  required: true
-  value: '3.2'
-
-- description: Password for the Redis connection user.
-  displayName: Redis Connection Password
-  from: '[a-zA-Z0-9]{16}'
-  generate: expression
-  name: REDIS_PASSWORD
-  required: true
-
-- description: Volume space available for redis data, e.g. 512Mi, 2Gi.
-  displayName: Redis Volume Capacity
-  name: REDIS_VOLUME_CAPACITY
-  required: true
-  value: 1Gi
-
-- description: Volume space available for pretalx data, e.g. 512Mi, 2Gi.
-  displayName: Pretalx Data Volume Capacity
-  name: PRETALX_DATA_VOLUME_CAPACITY
+- description: Volume space available for umap data, e.g. 512Mi, 2Gi.
+  displayName: Umap Data Volume Capacity
+  name: UMAP_DATA_VOLUME_CAPACITY
   required: true
   value: 1Gi
