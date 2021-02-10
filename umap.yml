@@ -83,7 +83,7 @@ objects:
   metadata:
     annotations:
       description: Manage umap configuration
-    name: ${NAME}-umap
+    name: ${NAME}-config
   data:
     config.py: |-
       # -*- coding:utf-8 -*-
@@ -340,10 +340,22 @@ objects:
           volumeMounts:
           - mountPath: /srv/data/
             name: ${NAME}-data
+          - mountPath: /srv/uwsgi/
+            name: config-volume-uwsgi
+          - mountPath: /srv/umap-config/
+            name: config-volume-umap
         volumes:
         - name: ${NAME}-data
           persistentVolumeClaim:
             claimName: ${NAME}-data
+        - name: config-volume-umap
+          configMap:
+            name: ${NAME}-config
+        - name: config-volume-uwsgi
+          configMap:
+            name: ${NAME}-uwsgi
+
+
     triggers:
     - imageChangeParams:
         automatic: true
