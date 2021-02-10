@@ -10,7 +10,7 @@ metadata:
     description: A example deployment of Umap
     iconClass: icon-python
     openshift.io/display-name: Umap
-    openshift.io/documentation-url: https://pretalx.readthedocs.io/en/latest/
+    openshift.io/documentation-url: https://umap-project.readthedocs.io/
     openshift.io/long-description: This template deploy umap from git
     openshift.io/provider-display-name: OSPO, Red Hat, Inc.
     tags: quickstart,python,django
@@ -26,15 +26,13 @@ objects:
     database-password: ${DATABASE_PASSWORD}
     database-user: ${DATABASE_USER}
     django-secret-key: ${DJANGO_SECRET_KEY}
-    redis-password: ${REDIS_PASSWORD}
 
 - apiVersion: v1
   kind: Service
   metadata:
     annotations:
       description: Exposes and load balances the application pods
-      service.alpha.openshift.io/dependencies: '[{"name": "postgresql",
-        "kind": "Service"}, {"name": "redis", "kind": "Service"}]'
+      service.alpha.openshift.io/dependencies: '[{"name": "postgresql", "kind": "Service"}]'
     name: ${NAME}
   spec:
     ports:
@@ -70,15 +68,15 @@ objects:
   data: 
     uswgi.ini: |+
       [uwsgi]
-      http = 8000
+      http = 8080
       module = umap.wsgi:application
       master = True
       vacuum = True
       max-requests = 5000
       processes = 4
       enable-threads = true
-      static-map = /static=/srv/static
-      static-map = /uploads=/srv/uploads
+      static-map = /static=/srv/data/static
+      static-map = /uploads=/srv/data/uploads
 
 - apiVersion: v1
   kind: ConfigMap
@@ -92,17 +90,18 @@ objects:
       import os.environ
       from umap.settings.base import *   # pylint: disable=W0614,W0401
 
-      SECRET_KEY = env('SECRET_KEY')
+      SECRET_KEY = os.environ['SECRET_KEY']
       INTERNAL_IPS = '127.0.0.1'
       ALLOWED_HOSTS = '*'
 
       DEBUG = False
 
-      ADMIN_EMAILS = '')
+      ADMIN_EMAILS = ''
       ADMINS = [(email, email) for email in ADMIN_EMAILS]
       MANAGERS = ADMINS
 
       DATABASES = {
+        # TODO
         'default': env.db(default='postgis://localhost:5432/umap')
       }
 
@@ -114,7 +113,8 @@ objects:
       # Set to False if login into django account should not be possible. You can
       # administer accounts in the admin interface.
       ENABLE_ACCOUNT_LOGIN = True
-
+      # TODO login with google + restrict 
+      # https://stackoverflow.com/questions/47550789/django-allauth-social-logingoogle-oauth-2-limit-list-of-domains
       AUTHENTICATION_BACKENDS = ()
 
       AUTHENTICATION_BACKENDS += (
@@ -147,6 +147,7 @@ objects:
       # How many maps should be showcased on the user page, if owner
       UMAP_MAPS_PER_PAGE_OWNER = 10
 
+      # TODO 
       SITE_URL = env('SITE_URL')
       SHORT_SITE_URL = env('SHORT_SITE_URL', default=None)
 
@@ -161,15 +162,15 @@ objects:
       UMAP_USE_UNACCENT = False
 
       # For static deployment
-      STATIC_ROOT = '/srv/static'
+      STATIC_ROOT = '/srv/data/static'
 
       # For users' statics (geojson mainly)
-      MEDIA_ROOT = '/srv/uploads'
+      MEDIA_ROOT = '/srv/data/uploads'
 
       # Default map location for new maps
-      LEAFLET_LONGITUDE = env.int('LEAFLET_LONGITUDE', default=2)
-      LEAFLET_LATITUDE = env.int('LEAFLET_LATITUDE', default=51)
-      LEAFLET_ZOOM = env.int('LEAFLET_ZOOM', default=6)
+      LEAFLET_LONGITUDE = 2
+      LEAFLET_LATITUDE = 51
+      LEAFLET_ZOOM = 6
 
       # Number of old version to keep per datalayer.
       LEAFLET_STORAGE_KEEP_VERSIONS = 5
@@ -235,16 +236,14 @@ objects:
 
         RUN pip install .
         COPY --from=vendors /srv/umap/static/umap/vendors /srv/umap/static/umap/vendors
-        EXPOSE 8000
+        EXPOSE 8080
+        # TODO use init
         CMD ["uwsgi"]
     strategy:
       type: Docker
   triggers:
   - type: ImageChange
   - type: ConfigChange
-  - github:
-      secret: ${GITHUB_WEBHOOK_SECRET}
-    type: GitHub
 
 # TODO
 - apiVersion: v1
@@ -495,12 +494,6 @@ parameters:
   required: true
   value: openshift
 
-- description: Version of Python image to be used (3.6 or latest).
-  displayName: Version of Python Image
-  name: PYTHON_VERSION
-  required: true
-  value: '3.8'
-
 - description: Version of PostgreSQL image to be used (10 or latest).
   displayName: Version of PostgreSQL Image
   name: POSTGRESQL_VERSION
@@ -525,51 +518,35 @@ parameters:
   required: true
   value: 1Gi
 
-- description: Set this to a branch name, tag or other ref of your repository if you
-    are not using the default branch.
-  displayName: Git Reference
-  name: SOURCE_REPOSITORY_REF
-
 - description: The exposed hostname that will route to the Django service, if left
     blank a value will be defaulted.
   displayName: Application Hostname
   name: APPLICATION_DOMAIN
   value: ''
 
-- description: Github trigger secret.  A difficult to guess string encoded as part
-    of the webhook URL.  Not encrypted.
-  displayName: GitHub Webhook Secret
-  from: '[a-zA-Z0-9]{40}'
-  generate: expression
-  name: GITHUB_WEBHOOK_SECRET
-
 - displayName: Database Name
   name: DATABASE_NAME
   required: true
-  value: default
+  value: umap
 
-- displayName: Database Username
+- displayName: Database username
   name: DATABASE_USER
   required: true
-  value: django
+  value: umap
 
-- displayName: Database User Password
+- displayName: Database user password
   from: '[a-zA-Z0-9]{16}'
   generate: expression
   name: DATABASE_PASSWORD
 
-- description: Relative path to Gunicorn configuration file (optional).
-  displayName: Application Configuration File Path
-  name: APP_CONFIG
-
 - description: Set this to a long random string.
-  displayName: Django Secret Key
+  displayName: Django secret key
   from: '[\w]{50}'
   generate: expression
   name: DJANGO_SECRET_KEY
 
 - description: Volume space available for umap data, e.g. 512Mi, 2Gi.
-  displayName: Umap Data Volume Capacity
+  displayName: Umap data volume capacity
   name: UMAP_DATA_VOLUME_CAPACITY
   required: true
   value: 1Gi
