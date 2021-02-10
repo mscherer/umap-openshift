@@ -242,7 +242,7 @@ objects:
         WORKDIR /srv
         COPY . . 
         ENV UMAP_SETTINGS=/srv/umap-config/config.py
-        RUN dnf install -y pip postgresql-devel python-devel gcc uwsgi && dnf clean all
+        RUN dnf install -y pip postgresql-devel python-devel gcc uwsgi python3-gdal && dnf clean all
 
         RUN pip install .
         COPY --from=vendors /srv/code/umap/static/umap/vendors /srv/code/umap/static/umap/vendors
