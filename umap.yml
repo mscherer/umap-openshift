@@ -313,10 +313,6 @@ objects:
               secretKeyRef:
                 key: database-password
                 name: ${NAME}
-          - name: APP_CONFIG
-            value: ${APP_CONFIG}
-          - name: APP_MODULE
-            value: pretalx.wsgi
           - name: DJANGO_SECRET_KEY
             valueFrom:
               secretKeyRef:
