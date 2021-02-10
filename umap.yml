@@ -365,7 +365,7 @@ objects:
     name: ${NAME}-data
   spec:
     accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
     resources:
       requests:
         storage: ${UMAP_DATA_VOLUME_CAPACITY}
