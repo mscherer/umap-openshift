@@ -222,7 +222,7 @@ objects:
       dockerfile: |-
         # taken from https://github.com/umap-project/umap/pull/801/files
         FROM node:12 AS vendors
-        WORKDIR /srv
+        WORKDIR /srv/code
         COPY . .
         RUN make installjs
         RUN make vendors
@@ -230,14 +230,14 @@ objects:
         FROM fedora:33
         WORKDIR /srv
         COPY . . 
-        ENV UMAP_SETTINGS=/srv/config.py
+        ENV UMAP_SETTINGS=/srv/umap-config/config.py
         RUN dnf install -y pip postgresql-devel python-devel gcc uwsgi && dnf clean all
 
         RUN pip install .
-        COPY --from=vendors /srv/umap/static/umap/vendors /srv/umap/static/umap/vendors
+        COPY --from=vendors /srv/code/umap/static/umap/vendors /srv/code/umap/static/umap/vendors
         EXPOSE 8080
         # TODO use init
-        CMD ["uwsgi"]
+        CMD ["uwsgi", "--ini", "/srv/uwsgi/uwsgi.ini"]
     strategy:
       type: Docker
   triggers:
