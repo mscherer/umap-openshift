@@ -68,7 +68,7 @@ objects:
   data: 
     uswgi.ini: |+
       [uwsgi]
-      http = 8080
+      http-socket = :8080
       module = umap.wsgi:application
       master = True
       vacuum = True
