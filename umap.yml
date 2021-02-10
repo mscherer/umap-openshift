@@ -66,7 +66,7 @@ objects:
       description: Manage uwsgi configuration
     name: ${NAME}-uwsgi
   data: 
-    uswgi.ini: |+
+    uwsgi.ini: |+
       [uwsgi]
       http-socket = :8080
       module = umap.wsgi:application
@@ -87,7 +87,7 @@ objects:
   data:
     config.py: |-
       # -*- coding:utf-8 -*-
-      import os.environ
+      import os
       from umap.settings.base import *   # pylint: disable=W0614,W0401
 
       SECRET_KEY = os.environ['SECRET_KEY']
@@ -101,8 +101,15 @@ objects:
       MANAGERS = ADMINS
 
       DATABASES = {
-        # TODO
-        'default': env.db(default='postgis://localhost:5432/umap')
+          'default': {
+              "ENGINE": "django.contrib.gis.db.backends.postgis",
+              "NAME": os.environ['UMAP_DB_NAME'],
+              "USER": os.environ['UMAP_DB_USER'],
+              "PASSWORD": os.environ['UMAP_DB_PASS'],
+              "HOST": os.environ['POSTGRESQL_SERVICE_HOST'],
+              "PORT": os.environ['POSTGRESQL_SERVICE_PORT'],
+              "CONN_MAX_AGE": 120,
+          }
       }
 
       COMPRESS_ENABLED = True
@@ -148,10 +155,14 @@ objects:
       UMAP_MAPS_PER_PAGE_OWNER = 10
 
       # TODO 
-      SITE_URL = env('SITE_URL')
-      SHORT_SITE_URL = env('SHORT_SITE_URL', default=None)
+      SITE_URL = os.environ['SITE_URL']
+      SHORT_SITE_URL = None
 
-      CACHES = {'default': 'locmem://'}
+      CACHES = {
+        'default': {
+          'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        }
+      }
 
       # POSTGIS_VERSION = (2, 1, 0)
       EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
@@ -297,23 +308,21 @@ objects:
                 name: ${NAME}
         containers:
         - env:
-          - name: PRETALX_SITE_URL
+          - name: SITE_URL
             value: https://${APPLICATION_DOMAIN}
-          - name: PRETALX_DB_TYPE
-            value: postgresql
-          - name: PRETALX_DB_NAME
+          - name: UMAP_DB_NAME
             value: ${DATABASE_NAME}
-          - name: PRETALX_DB_USER
+          - name: UMAP_DB_USER
             valueFrom:
               secretKeyRef:
                 key: database-user
                 name: ${NAME}
-          - name: PRETALX_DB_PASS
+          - name: UMAP_DB_PASS
             valueFrom:
               secretKeyRef:
                 key: database-password
                 name: ${NAME}
-          - name: DJANGO_SECRET_KEY
+          - name: SECRET_KEY
             valueFrom:
               secretKeyRef:
                 key: django-secret-key
