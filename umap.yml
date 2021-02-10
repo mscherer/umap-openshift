@@ -215,7 +215,6 @@ objects:
         kind: ImageStreamTag
         name: ${NAME}:latest
     source:
-      contextDir: src
       git:
         ref: master
         uri: https://github.com/umap-project/umap.git
