@@ -482,7 +482,7 @@ objects:
         FROM postgres-fedora
         USER 0
         RUN mkdir -p postgresql-cfg && echo "shared_preload_libraries='postgis-3'" > postgresql-cfg/postgis.conf
-        RUN mkdir -p postgresql-init && echo -en 'echo "CREATE EXTENSION IF NOT EXISTS postgis;" | psql' > postgresql-init/enable_postgis.sh
+        RUN mkdir -p postgresql-start && echo -en 'psql -c "CREATE EXTENSION IF NOT EXISTS postgis;" $POSTGRESQL_DATABASE' > postgresql-start/enable_postgis.sh
         RUN dnf install --setopt=install_weak_deps=False --best -y postgis && dnf clean all
         USER 26
     strategy:
