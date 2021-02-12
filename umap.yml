@@ -470,18 +470,53 @@ objects:
         - postgresql
         from:
           kind: ImageStreamTag
-          name: postgresql:${POSTGRESQL_VERSION}
-          namespace: ${NAMESPACE}
+          name: postgres-postgis:latest
       type: ImageChange
     - type: ConfigChange
 
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    annotations:
+      description: Rebuild postgres with postgis
+      template.alpha.openshift.io/wait-for-ready: 'true'
+    name: postgres-postgis
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: postgres-postgis:latest
+    source:
+      dockerfile: |-
+        FROM postgres-fedora
+        USER 0
+        RUN mkdir -p postgresql-cfg && echo "shared_preload_libraries='postgis-3'" > postgresql-cfg/postgis.conf
+        RUN mkdir -p postgresql-init && echo -en 'echo "CREATE EXTENSION IF NOT EXISTS postgis;" | psql' > postgresql-init/enable_postgis.sh
+        RUN dnf install --setopt=install_weak_deps=False --best -y postgis && dnf clean all
+        USER 26
+    strategy:
+      type: Docker
+      dockerStrategy:
+        from:
+          kind: ImageStreamTag
+          name: postgres-fedora:latest
+  triggers:
+  - type: ImageChange
+  - type: ConfigChange
 
 - apiVersion: v1
   kind: ImageStream
   metadata:
     annotations:
-      description: Keeps track of changes in the application image
-    name: postgresql
+      description: Keeps track of the postgres with postgis container
+    name: postgres-postgis
+
+- apiVersion: v1
+  kind: ImageStream
+  metadata:
+    annotations:
+      description: Original postgres imagestream from Fedora
+    name: postgres-fedora
   spec:
     lookupPolicy:
       local: false
@@ -489,7 +524,7 @@ objects:
     - annotations: null
       from:
         kind: DockerImage
-        name: docker.io/postgis/postgis
+        name: registry.fedoraproject.org/f33/postgresql
       generation: 2
       importPolicy:
         scheduled: true
