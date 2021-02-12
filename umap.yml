@@ -70,6 +70,7 @@ objects:
       [uwsgi]
       http-socket = :8080
       module = umap.wsgi:application
+      chdir = /srv
       master = True
       vacuum = True
       max-requests = 5000
