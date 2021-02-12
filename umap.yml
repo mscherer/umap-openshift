@@ -523,18 +523,13 @@ objects:
       referencePolicy:
         type: Source
 
+
 parameters:
 - description: The name assigned to all of the frontend objects defined in this template.
   displayName: Name
   name: NAME
   required: true
   value: umap
-
-- description: The OpenShift Namespace where the ImageStream resides.
-  displayName: Namespace
-  name: NAMESPACE
-  required: true
-  value: openshift
 
 - description: Version of PostgreSQL image to be used (10 or latest).
   displayName: Version of PostgreSQL Image
