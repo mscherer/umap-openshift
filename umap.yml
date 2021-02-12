@@ -576,12 +576,6 @@ parameters:
   required: true
   value: umap
 
-- description: Version of PostgreSQL image to be used (10 or latest).
-  displayName: Version of PostgreSQL Image
-  name: POSTGRESQL_VERSION
-  required: true
-  value: '10'
-
 - description: Maximum amount of memory the Django container can use.
   displayName: Memory Limit
   name: MEMORY_LIMIT
