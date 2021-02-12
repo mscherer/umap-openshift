@@ -276,10 +276,12 @@ objects:
       name: ${NAME}
       spec:
         initContainers:
-        - name: init-db
-          image: ${NAME}
+        - name: ${NAME}-init-db
           command: ['umap', 'migrate']
+          image: ' '
           env:
+          - name: SITE_URL
+            value: https://${APPLICATION_DOMAIN}
           - name: UMAP_DB_NAME
             value: ${DATABASE_NAME}
           - name: UMAP_DB_USER
@@ -297,8 +299,13 @@ objects:
               secretKeyRef:
                 key: django-secret-key
                 name: ${NAME}
+          volumeMounts:
+          - mountPath: /srv/umap-config/
+            name: config-volume-umap
+          - mountPath: /srv/data/
+            name: ${NAME}-data
         containers:
-        - name: umap
+        - name: ${NAME}
           env:
           - name: SITE_URL
             value: https://${APPLICATION_DOMAIN}
@@ -360,7 +367,8 @@ objects:
     - imageChangeParams:
         automatic: true
         containerNames:
-        - django-psql-persistent
+        - ${NAME}
+        - ${NAME}-init-db
         from:
           kind: ImageStreamTag
           name: ${NAME}:latest
