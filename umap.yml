@@ -249,7 +249,6 @@ objects:
         RUN pip install .
         COPY --from=vendors /srv/code/umap/static/umap/vendors /srv/code/umap/static/umap/vendors
         EXPOSE 8080
-        # TODO use init
         CMD ["uwsgi", "--ini", "/srv/uwsgi/uwsgi.ini"]
     strategy:
       type: Docker
@@ -257,7 +256,6 @@ objects:
   - type: ImageChange
   - type: ConfigChange
 
-# TODO
 - apiVersion: v1
   kind: DeploymentConfig
   metadata:
@@ -337,7 +335,6 @@ objects:
 
         containers:
         - name: ${NAME}
-          command: ['umap', 'runserver', '0.0.0.0:8080']
           env:
           - name: SITE_URL
             value: https://${APPLICATION_DOMAIN}
