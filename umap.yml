@@ -306,6 +306,35 @@ objects:
             name: config-volume-umap
           - mountPath: /srv/data/
             name: ${NAME}-data
+        - name: ${NAME}-init-static
+          command: ['umap', 'collectstatic', '--no-input']
+          image: ' '
+          env:
+          - name: SITE_URL
+            value: https://${APPLICATION_DOMAIN}
+          - name: UMAP_DB_NAME
+            value: ${DATABASE_NAME}
+          - name: UMAP_DB_USER
+            valueFrom:
+              secretKeyRef:
+                key: database-user
+                name: ${NAME}
+          - name: UMAP_DB_PASS
+            valueFrom:
+              secretKeyRef:
+                key: database-password
+                name: ${NAME}
+          - name: SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                key: django-secret-key
+                name: ${NAME}
+          volumeMounts:
+          - mountPath: /srv/umap-config/
+            name: config-volume-umap
+          - mountPath: /srv/data/
+            name: ${NAME}-data
+
         containers:
         - name: ${NAME}
           command: ['umap', 'runserver', '0.0.0.0:8080']
@@ -372,6 +401,7 @@ objects:
         containerNames:
         - ${NAME}
         - ${NAME}-init-db
+        - ${NAME}-init-static
         from:
           kind: ImageStreamTag
           name: ${NAME}:latest
