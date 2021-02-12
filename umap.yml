@@ -77,6 +77,7 @@ objects:
       processes = 4
       enable-threads = true
       static-map = /static=/srv/data/static
+      static-map = /static/umap/vendors=/srv/code/umap/static/umap/vendors
       static-map = /uploads=/srv/data/uploads
       plugins = python3
 
@@ -245,7 +246,12 @@ objects:
         WORKDIR /srv
         COPY . . 
         ENV UMAP_SETTINGS=/srv/umap-config/config.py
-        RUN dnf install -y pip postgresql-devel python-devel gcc uwsgi uwsgi-plugin-python3 python3-gdal && dnf clean all
+        # pip for pip install
+        # postgresql-devel python-devel gcc to build modules
+        # uwsgi & uwsgi-plugin-python3 as a server
+        # mailcap since uwsgi do not set mime types with /etc/mimetypes
+        # python3-gdal is needed by the software
+        RUN dnf install -y pip postgresql-devel python-devel gcc uwsgi uwsgi-plugin-python3 mailcap python3-gdal && dnf clean all
 
         RUN pip install .
         COPY --from=vendors /srv/code/umap/static/umap/vendors /srv/code/umap/static/umap/vendors
