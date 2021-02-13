@@ -60,6 +60,14 @@ objects:
     name: ${NAME}
 
 - apiVersion: v1
+  kind: ImageStream
+  metadata:
+    annotations:
+      description: Keeps track of changes in the application image
+    name: ${NAME}-vendors
+
+
+- apiVersion: v1
   kind: ConfigMap
   metadata:
     annotations:
@@ -223,6 +231,40 @@ objects:
     annotations:
       description: Defines how to build the application
       template.alpha.openshift.io/wait-for-ready: 'true'
+    name: ${NAME}-vendors
+  spec:
+    output:
+      to:
+        kind: ImageStreamTag
+        name: ${NAME}-vendors:latest
+    source:
+      git:
+        ref: master
+        uri: https://github.com/umap-project/umap.git
+      type: Git
+      dockerfile: |-
+        # taken from https://github.com/umap-project/umap/pull/801/files
+        FROM docker.io/node:12
+        WORKDIR /srv/code
+        COPY . .
+        RUN make installjs
+        RUN make vendors
+
+        CMD ["cp", "-rf", "/srv/code/umap/static/umap/vendors", "/srv/data/static/umap/"]
+    strategy:
+      type: Docker
+  triggers:
+  - type: ImageChange
+  - type: ConfigChange
+
+
+
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    annotations:
+      description: Defines how to build the application
+      template.alpha.openshift.io/wait-for-ready: 'true'
     name: ${NAME}
   spec:
     output:
@@ -235,13 +277,6 @@ objects:
         uri: https://github.com/umap-project/umap.git
       type: Git
       dockerfile: |-
-        # taken from https://github.com/umap-project/umap/pull/801/files
-        FROM node:12 AS vendors
-        WORKDIR /srv/code
-        COPY . .
-        RUN make installjs
-        RUN make vendors
-
         FROM fedora:33
         WORKDIR /srv
         COPY . . 
@@ -254,7 +289,6 @@ objects:
         RUN dnf install -y pip postgresql-devel python-devel gcc uwsgi uwsgi-plugin-python3 mailcap python3-gdal && dnf clean all
 
         RUN pip install .
-        COPY --from=vendors /srv/code/umap/static/umap/vendors /srv/code/umap/static/umap/vendors
         EXPOSE 8080
         CMD ["uwsgi", "--ini", "/srv/uwsgi/uwsgi.ini"]
     strategy:
@@ -311,6 +345,13 @@ objects:
             name: config-volume-umap
           - mountPath: /srv/data/
             name: ${NAME}-data
+
+        - name: ${NAME}-copy-vendor
+          image: ' '
+          volumeMounts:
+          - mountPath: /srv/data/
+            name: ${NAME}-data
+
         - name: ${NAME}-init-static
           command: ['umap', 'collectstatic', '--no-input']
           image: ' '
@@ -410,6 +451,16 @@ objects:
           kind: ImageStreamTag
           name: ${NAME}:latest
       type: ImageChange
+
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - ${NAME}-copy-vendor
+        from:
+          kind: ImageStreamTag
+          name: ${NAME}-vendors:latest
+      type: ImageChange
+
     - type: ConfigChange
 
 - apiVersion: v1
